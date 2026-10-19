@@ -28,5 +28,5 @@ public class CartItem {
     private Long itemId;
 
     @Column(nullable = false)
-    private Integer count;
+    private Integer quantity;
 }

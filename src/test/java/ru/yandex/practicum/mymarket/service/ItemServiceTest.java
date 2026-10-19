@@ -68,8 +68,8 @@ public class ItemServiceTest extends AbstractIntegrationTest {
     @Test
     void findItems_shouldReturnCartCount() {
         Long id = itemRepository.findAll().get(0).getId();
-        cartService.changeCount(id, ActionType.PLUS);
-        cartService.changeCount(id, ActionType.PLUS);
+        cartService.changeQuantity(id, ActionType.PLUS);
+        cartService.changeQuantity(id, ActionType.PLUS);
 
         var result = itemService.findItems(null, SortType.NO, 1, 10);
         ItemDto dto = result.items().stream().flatMap(List::stream)
@@ -80,7 +80,7 @@ public class ItemServiceTest extends AbstractIntegrationTest {
     @Test
     void findCartItems_shouldReturnOnlyExisting() {
         Long id = itemRepository.findAll().get(0).getId();
-        cartService.changeCount(id, ActionType.PLUS);
+        cartService.changeQuantity(id, ActionType.PLUS);
         assertThat(itemService.findCartItems()).hasSize(1);
     }
 }

@@ -9,6 +9,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import ru.yandex.practicum.mymarket.dto.OrderDto;
 import ru.yandex.practicum.mymarket.service.OrderService;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -30,7 +31,7 @@ public class OrderControllerTest {
     @Test
     void orders_returnsView() throws Exception {
         Mockito.when(orderService.findAll()).thenReturn(List.of(
-                new OrderDto(1L, List.of(), 0L)
+                new OrderDto(1L, List.of(), 0L, LocalDateTime.now())
         ));
         mockMvc.perform(get("/orders"))
                 .andExpect(status().isOk())
@@ -41,7 +42,7 @@ public class OrderControllerTest {
     @Test
     void order_returnsView() throws Exception {
         Mockito.when(orderService.findById(1L))
-                .thenReturn(new OrderDto(1L, List.of(), 0L));
+                .thenReturn(new OrderDto(1L, List.of(), 0L, LocalDateTime.now()));
         mockMvc.perform(get("/orders/1"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("order"))

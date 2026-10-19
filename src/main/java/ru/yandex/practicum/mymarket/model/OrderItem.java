@@ -36,5 +36,5 @@ public class OrderItem {
 
     private String title;
     private Long price;
-    private Integer count;
+    private Integer quantity;
 }

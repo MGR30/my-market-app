@@ -13,6 +13,7 @@ import ru.yandex.practicum.mymarket.model.OrderItem;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
 import ru.yandex.practicum.mymarket.repository.OrderRepository;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,11 @@ public class OrderService {
                         cartItems.stream().map(CartItem::getItemId).toList())
                 .stream().collect(Collectors.toMap(Item::getId, Function.identity()));
 
-        Order order = Order.builder().items(new ArrayList<>()).build();
+        Order order = Order.builder()
+                .createdAt(LocalDateTime.now())
+                .items(new ArrayList<>())
+                .build();
+
         for (CartItem cartItem : cartItems) {
             Item item = items.get(cartItem.getItemId());
             if (item == null) {
@@ -52,7 +57,7 @@ public class OrderService {
                     .itemId(item.getId())
                     .title(item.getTitle())
                     .price(item.getPrice())
-                    .count(cartItem.getCount())
+                    .quantity(cartItem.getQuantity())
                     .build();
             order.getItems().add(oi);
         }
@@ -63,7 +68,8 @@ public class OrderService {
 
         Order saved = orderRepository.save(order);
         cartService.clear();
-        log.info("Создан заказ id={}, позиций={}", saved.getId(), saved.getItems().size());
+        log.info("Создан заказ id={}, позиций={}, createdAt={}",
+                saved.getId(), saved.getItems().size(), saved.getCreatedAt());
         return saved.getId();
     }
 
@@ -84,8 +90,8 @@ public class OrderService {
     private OrderDto toDto(Order order) {
         List<ItemDto> items = order.getItems().stream()
                 .map(oi -> new ItemDto(oi.getItemId(), oi.getTitle(), null, null,
-                        oi.getPrice(), oi.getCount()))
+                        oi.getPrice(), oi.getQuantity()))
                 .toList();
-        return new OrderDto(order.getId(), items, order.getTotalSum());
+        return new OrderDto(order.getId(), items, order.getTotalSum(), order.getCreatedAt());
     }
 }

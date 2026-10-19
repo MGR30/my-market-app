@@ -50,7 +50,7 @@ public class ItemService {
         Map<Long, Integer> cartCounts = ids.isEmpty()
                 ? Map.of()
                 : cartItemRepository.findAllByItemIdIn(ids).stream()
-                .collect(Collectors.toMap(CartItem::getItemId, CartItem::getCount));
+                .collect(Collectors.toMap(CartItem::getItemId, CartItem::getQuantity));
 
         List<ItemDto> itemDtos = page.getContent().stream()
                 .map(item -> toDto(item, cartCounts.getOrDefault(item.getId(), 0)))
@@ -64,7 +64,7 @@ public class ItemService {
     public ItemDto findById(long id) {
         Item item = itemRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Товар не найден: " + id));
-        int count = cartItemRepository.findByItemId(id).map(CartItem::getCount).orElse(0);
+        int count = cartItemRepository.findByItemId(id).map(CartItem::getQuantity).orElse(0);
         return toDto(item, count);
     }
 
@@ -82,7 +82,7 @@ public class ItemService {
                 .map(ci -> {
                     Item it = items.get(ci.getItemId());
                     return new ItemDto(it.getId(), it.getTitle(), it.getDescription(),
-                            it.getImgPath(), it.getPrice(), ci.getCount());
+                            it.getImgPath(), it.getPrice(), ci.getQuantity());
                 })
                 .toList();
     }

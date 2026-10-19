@@ -30,7 +30,7 @@ public class CartController {
 
     @PostMapping("/items")
     public String change(@RequestParam long id, @RequestParam ActionType action, Model model) {
-        cartService.changeCount(id, action);
+        cartService.changeQuantity(id, action);
         fillCart(model);
         return "cart";
     }

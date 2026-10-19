@@ -16,25 +16,25 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
 
     @Transactional
-    public void changeCount(long itemId, ActionType action) {
+    public void changeQuantity(long itemId, ActionType action) {
         CartItem cartItem = cartItemRepository.findByItemId(itemId).orElse(null);
 
         switch (action) {
             case PLUS -> {
                 if (cartItem == null) {
-                    cartItem = CartItem.builder().itemId(itemId).count(1).build();
+                    cartItem = CartItem.builder().itemId(itemId).quantity(1).build();
                 } else {
-                    cartItem.setCount(cartItem.getCount() + 1);
+                    cartItem.setQuantity(cartItem.getQuantity() + 1);
                 }
                 cartItemRepository.save(cartItem);
             }
             case MINUS -> {
                 if (cartItem == null) return;
-                int newCount = cartItem.getCount() - 1;
-                if (newCount <= 0) {
+                int newQuantity = cartItem.getQuantity() - 1;
+                if (newQuantity <= 0) {
                     cartItemRepository.delete(cartItem);
                 } else {
-                    cartItem.setCount(newCount);
+                    cartItem.setQuantity(newQuantity);
                     cartItemRepository.save(cartItem);
                 }
             }

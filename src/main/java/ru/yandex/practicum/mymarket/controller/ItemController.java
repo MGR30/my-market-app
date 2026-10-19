@@ -51,7 +51,7 @@ public class ItemController {
             @RequestParam(defaultValue = "5") int pageSize,
             @RequestParam ActionType action) {
 
-        cartService.changeCount(id, action);
+        cartService.changeQuantity(id, action);
 
         UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/items");
         if (search != null && !search.isBlank()) {
@@ -69,7 +69,7 @@ public class ItemController {
             @PathVariable long id,
             @RequestParam ActionType action,
             Model model) {
-        cartService.changeCount(id, action);
+        cartService.changeQuantity(id, action);
         model.addAttribute("item", itemService.findById(id));
         return "item";
     }

@@ -46,9 +46,9 @@ public class OrderServiceTest extends AbstractIntegrationTest {
 
     @Test
     void createOrder_shouldComputeTotalAndClearCart() {
-        cartService.changeCount(item1, ActionType.PLUS);
-        cartService.changeCount(item1, ActionType.PLUS);
-        cartService.changeCount(item2, ActionType.PLUS);
+        cartService.changeQuantity(item1, ActionType.PLUS);
+        cartService.changeQuantity(item1, ActionType.PLUS);
+        cartService.changeQuantity(item2, ActionType.PLUS);
 
         long id = orderService.createOrder();
         OrderDto dto = orderService.findById(id);
@@ -72,9 +72,9 @@ public class OrderServiceTest extends AbstractIntegrationTest {
 
     @Test
     void findAll_shouldReturnNewestFirst() {
-        cartService.changeCount(item1, ActionType.PLUS);
+        cartService.changeQuantity(item1, ActionType.PLUS);
         long id1 = orderService.createOrder();
-        cartService.changeCount(item2, ActionType.PLUS);
+        cartService.changeQuantity(item2, ActionType.PLUS);
         long id2 = orderService.createOrder();
 
         List<OrderDto> orders = orderService.findAll();

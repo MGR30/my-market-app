@@ -17,9 +17,9 @@ public class CartItemRepositoryTest extends AbstractJpaTest {
     @Test
     void findAllByItemIdIn_shouldReturnMatching() {
         cartItemRepository.saveAll(List.of(
-                CartItem.builder().itemId(1L).count(2).build(),
-                CartItem.builder().itemId(2L).count(3).build(),
-                CartItem.builder().itemId(3L).count(4).build()
+                CartItem.builder().itemId(1L).quantity(2).build(),
+                CartItem.builder().itemId(2L).quantity(3).build(),
+                CartItem.builder().itemId(3L).quantity(4).build()
         ));
 
         assertThat(cartItemRepository.findAllByItemIdIn(List.of(1L, 3L)))
