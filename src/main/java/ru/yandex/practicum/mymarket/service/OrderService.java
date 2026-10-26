@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.dto.OrderDto;
 import ru.yandex.practicum.mymarket.model.CartItem;
@@ -11,15 +12,14 @@ import ru.yandex.practicum.mymarket.model.Item;
 import ru.yandex.practicum.mymarket.model.Order;
 import ru.yandex.practicum.mymarket.model.OrderItem;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
+import ru.yandex.practicum.mymarket.repository.OrderItemRepository;
 import ru.yandex.practicum.mymarket.repository.OrderRepository;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -27,71 +27,102 @@ import java.util.stream.Collectors;
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
     private final ItemRepository itemRepository;
     private final CartService cartService;
 
     @Transactional
-    public long createOrder() {
-        List<CartItem> cartItems = cartService.findAll();
-        if (cartItems.isEmpty()) {
-            throw new IllegalStateException("Корзина пуста");
-        }
+    public Mono<Long> createOrder() {
+        return cartService.findAll().collectList()
+                .flatMap(cartItems -> {
+                    if (cartItems.isEmpty()) {
+                        return Mono.error(new IllegalStateException("Корзина пуста"));
+                    }
 
-        Map<Long, Item> items = itemRepository.findAllById(
-                        cartItems.stream().map(CartItem::getItemId).toList())
-                .stream().collect(Collectors.toMap(Item::getId, Function.identity()));
+                    List<Long> itemIds = cartItems.stream()
+                            .map(CartItem::getItemId)
+                            .toList();
 
-        Order order = Order.builder()
-                .createdAt(LocalDateTime.now())
-                .items(new ArrayList<>())
-                .build();
+                    return itemRepository.findAllById(itemIds)
+                            .collectMap(Item::getId)
+                            .flatMap(items -> {
+                                Order order = Order.builder()
+                                        .createdAt(LocalDateTime.now())
+                                        .build();
 
-        for (CartItem cartItem : cartItems) {
-            Item item = items.get(cartItem.getItemId());
-            if (item == null) {
-                log.warn("Товар {} отсутствует, пропущен при оформлении заказа", cartItem.getItemId());
-                continue;
-            }
-            OrderItem oi = OrderItem.builder()
-                    .order(order)
-                    .itemId(item.getId())
-                    .title(item.getTitle())
-                    .price(item.getPrice())
-                    .quantity(cartItem.getQuantity())
-                    .build();
-            order.getItems().add(oi);
-        }
+                                return orderRepository.save(order)
+                                        .flatMap(savedOrder -> {
+                                            List<OrderItem> orderItems = cartItems.stream()
+                                                    .map(cartItem -> {
+                                                        Item item = items.get(cartItem.getItemId());
+                                                        if (item == null) {
+                                                            log.warn("Товар {} отсутствует, пропущен", cartItem.getItemId());
+                                                            return null;
+                                                        }
+                                                        return OrderItem.builder()
+                                                                .orderId(savedOrder.getId())
+                                                                .itemId(item.getId())
+                                                                .title(item.getTitle())
+                                                                .price(item.getPrice())
+                                                                .quantity(cartItem.getQuantity())
+                                                                .build();
+                                                    })
+                                                    .filter(Objects::nonNull)
+                                                    .toList();
 
-        if (order.getItems().isEmpty()) {
-            throw new IllegalStateException("Все товары в корзине недоступны");
-        }
+                                            if (orderItems.isEmpty()) {
+                                                return Mono.error(new IllegalStateException("Все товары в корзине недоступны"));
+                                            }
 
-        Order saved = orderRepository.save(order);
-        cartService.clear();
-        log.info("Создан заказ id={}, позиций={}, createdAt={}",
-                saved.getId(), saved.getItems().size(), saved.getCreatedAt());
-        return saved.getId();
+                                            return orderItemRepository.saveAll(orderItems)
+                                                    .then(cartService.clear())
+                                                    .thenReturn(savedOrder.getId());
+                                        });
+                            });
+                });
     }
 
-    @Transactional(readOnly = true)
-    public List<OrderDto> findAll() {
-        return orderRepository.findAllByOrderByIdDesc().stream()
-                .map(this::toDto)
+    public Mono<List<OrderDto>> findAll() {
+        return orderRepository.findAllNewestFirst().collectList()
+                .flatMap(orders -> {
+                    if (orders.isEmpty()) {
+                        return Mono.just(List.of());
+                    }
+
+                    List<Long> orderIds = orders.stream().map(Order::getId).toList();
+
+                    return orderItemRepository.findAllByOrderIdIn(orderIds)
+                            .collectMultimap(OrderItem::getOrderId)
+                            .map(itemsByOrder -> orders.stream()
+                                    .map(order -> toDto(order, itemsByOrder.getOrDefault(order.getId(), List.of())))
+                                    .toList());
+                });
+    }
+
+    public Mono<OrderDto> findById(long id) {
+        return orderRepository.findById(id)
+                .switchIfEmpty(Mono.error(() -> new NoSuchElementException("Заказ не найден: " + id)))
+                .flatMap(order -> orderItemRepository.findAllByOrderId(id)
+                        .collectList()
+                        .map(items -> toDto(order, items)));
+    }
+
+    private OrderDto toDto(Order order, Collection<OrderItem> orderItems) {
+        List<ItemDto> items = orderItems.stream()
+                .map(oi -> new ItemDto(
+                        oi.getItemId(),
+                        oi.getTitle(),
+                        null,
+                        null,
+                        oi.getPrice(),
+                        oi.getQuantity()
+                ))
                 .toList();
-    }
 
-    @Transactional(readOnly = true)
-    public OrderDto findById(long id) {
-        return orderRepository.findWithItemsById(id)
-                .map(this::toDto)
-                .orElseThrow(() -> new NoSuchElementException("Заказ не найден: " + id));
-    }
+        long totalSum = orderItems.stream()
+                .mapToLong(oi -> oi.getPrice() * oi.getQuantity())
+                .sum();
 
-    private OrderDto toDto(Order order) {
-        List<ItemDto> items = order.getItems().stream()
-                .map(oi -> new ItemDto(oi.getItemId(), oi.getTitle(), null, null,
-                        oi.getPrice(), oi.getQuantity()))
-                .toList();
-        return new OrderDto(order.getId(), items, order.getTotalSum(), order.getCreatedAt());
+        return new OrderDto(order.getId(), items, totalSum, order.getCreatedAt());
     }
 }
