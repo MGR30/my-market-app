@@ -4,7 +4,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.reactive.function.BodyInserters;
 import ru.yandex.practicum.mymarket.model.Item;
 import ru.yandex.practicum.mymarket.repository.CartItemRepository;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
@@ -54,11 +56,10 @@ public class BuyFlowIntegrationTest extends AbstractIntegrationTest {
     @Test
     void fullBuyFlow() {
         webTestClient.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/items")
-                        .queryParam("id", itemId)
-                        .queryParam("action", "PLUS")
-                        .build())
+                .uri("/items")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData("id", itemId.toString())
+                        .with("action", "PLUS"))
                 .exchange()
                 .expectStatus().is3xxRedirection();
 
