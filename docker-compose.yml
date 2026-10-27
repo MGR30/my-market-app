@@ -1,36 +1,68 @@
 services:
-  db:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  postgres:
     image: postgres:16-alpine
-    restart: unless-stopped
     environment:
       POSTGRES_DB: marketdb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d marketdb"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
     volumes:
       - marketdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d marketdb"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
 
-  app:
-    build: .
-    restart: unless-stopped
+  payment-service:
+    build: ./payment-service
+    ports:
+      - "8081:8081"
     environment:
+      PAYMENT_INITIAL_BALANCE: "100000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/balance || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  market-app:
+    build: ./market-app
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_PORT: "8080"
       SPRING_PROFILES_ACTIVE: postgres
-      DB_HOST: db
+      DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: marketdb
       DB_USER: postgres
       DB_PASSWORD: postgres
-    ports:
-      - "8080:8080"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PAYMENT_SERVICE_URL: "http://payment-service:8081"
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+    restart: on-failure
 
 volumes:
   marketdata:

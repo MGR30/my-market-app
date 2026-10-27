@@ -1,0 +1,73 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  version: 1.0.0
+  description: RESTful-сервис платежей для витрины магазина
+
+paths:
+  /balance:
+    get:
+      operationId: getBalance
+      tags: [payment]
+      summary: Получить текущий баланс
+      responses:
+        '200':
+          description: Баланс получен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+
+  /pay:
+    post:
+      operationId: pay
+      tags: [payment]
+      summary: Списать сумму со счёта
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '200':
+          description: Платёж успешен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '409':
+          description: Недостаточно средств
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+
+components:
+  schemas:
+    BalanceResponse:
+      type: object
+      required: [balance]
+      properties:
+        balance:
+          type: integer
+          format: int64
+
+    PaymentRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+
+    PaymentResponse:
+      type: object
+      required: [success, remainingBalance]
+      properties:
+        success:
+          type: boolean
+        remainingBalance:
+          type: integer
+          format: int64
