@@ -27,6 +27,7 @@
         <maven.compiler.release>21</maven.compiler.release>
         <openapi-generator.version>7.20.0</openapi-generator.version>
         <lombok.version>1.18.38</lombok.version>
+        <jackson2.version>2.18.2</jackson2.version>
     </properties>
 
     <dependencyManagement>
@@ -35,6 +36,11 @@
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
                 <version>${lombok.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.datatype</groupId>
+                <artifactId>jackson-datatype-jsr310</artifactId>
+                <version>${jackson2.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

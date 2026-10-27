@@ -19,4 +19,6 @@ public class Order {
 
     @Column("created_at")
     private LocalDateTime createdAt;
+
+    private OrderStatus status;
 }
