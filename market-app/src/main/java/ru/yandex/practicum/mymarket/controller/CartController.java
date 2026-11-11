@@ -12,6 +12,9 @@ import ru.yandex.practicum.mymarket.dto.ActionType;
 import ru.yandex.practicum.mymarket.service.CartService;
 import ru.yandex.practicum.mymarket.service.ItemService;
 import ru.yandex.practicum.mymarket.service.PaymentService;
+import ru.yandex.practicum.mymarket.service.UserService;
+
+import java.security.Principal;
 
 @Controller
 @RequestMapping("/cart")
@@ -21,34 +24,37 @@ public class CartController {
     private final ItemService itemService;
     private final CartService cartService;
     private final PaymentService paymentService;
+    private final UserService userService;
 
     @GetMapping("/items")
-    public Mono<Rendering> cart() {
-        return fillCart();
+    public Mono<Rendering> cart(Principal principal) {
+        return userService.findByUsername(principal.getName())
+                .flatMap(user -> fillCart(user.getId()));
     }
 
     @PostMapping("/items")
-    public Mono<Rendering> change(ServerWebExchange exchange) {
-        return exchange.getFormData()
-                .flatMap(form -> {
-                    String idParam = form.getFirst("id");
-                    String actionParam = form.getFirst("action");
+    public Mono<Rendering> change(ServerWebExchange exchange, Principal principal) {
+        return userService.findByUsername(principal.getName())
+                .flatMap(user -> exchange.getFormData()
+                        .flatMap(form -> {
+                            String idParam = form.getFirst("id");
+                            String actionParam = form.getFirst("action");
 
-                    if (idParam == null || actionParam == null) {
-                        return Mono.error(new IllegalArgumentException(
-                                "Missing form fields: id=" + idParam + ", action=" + actionParam));
-                    }
+                            if (idParam == null || actionParam == null) {
+                                return Mono.error(new IllegalArgumentException(
+                                        "Missing form fields: id=" + idParam + ", action=" + actionParam));
+                            }
 
-                    long id = Long.parseLong(idParam);
-                    ActionType action = ActionType.valueOf(actionParam);
+                            long id = Long.parseLong(idParam);
+                            ActionType action = ActionType.valueOf(actionParam);
 
-                    return cartService.changeQuantity(id, action)
-                            .then(fillCart());
-                });
+                            return cartService.changeQuantity(user.getId(), id, action)
+                                    .then(fillCart(user.getId()));
+                        }));
     }
 
-    private Mono<Rendering> fillCart() {
-        return Mono.zip(itemService.findCartItems(), paymentService.getBalance())
+    private Mono<Rendering> fillCart(long userId) {
+        return Mono.zip(itemService.findCartItems(userId), paymentService.getBalance(userId))
                 .map(tuple -> {
                     var items = tuple.getT1();
                     long balance = tuple.getT2();
@@ -59,6 +65,7 @@ public class CartController {
                             .modelAttribute("total", total)
                             .modelAttribute("balance", balance)
                             .modelAttribute("canPay", canPay)
+                            .modelAttribute("isAuthenticated", true)
                             .build();
                 });
     }

@@ -19,17 +19,19 @@ public class PaymentController implements PaymentApi {
     private final BalanceService balanceService;
 
     @Override
-    public Mono<ResponseEntity<BalanceResponse>> getBalance(ServerWebExchange exchange) {
+    public Mono<ResponseEntity<BalanceResponse>> getBalance(Long userId, ServerWebExchange exchange) {
         return Mono.fromSupplier(() -> ResponseEntity.ok(
-                new BalanceResponse().balance(balanceService.getBalance())
+                new BalanceResponse().balance(balanceService.getBalance(userId))
         ));
     }
 
     @Override
-    public Mono<ResponseEntity<PaymentResponse>> pay(Mono<PaymentRequest> body, ServerWebExchange exchange) {
+    public Mono<ResponseEntity<PaymentResponse>> pay(Long userId,
+                                                     Mono<PaymentRequest> body,
+                                                     ServerWebExchange exchange) {
         return body.flatMap(req -> {
             try {
-                long remaining = balanceService.debit(req.getAmount());
+                long remaining = balanceService.debit(userId, req.getAmount());
                 return Mono.just(ResponseEntity.ok(
                         new PaymentResponse().success(true).remainingBalance(remaining)
                 ));

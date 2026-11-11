@@ -16,16 +16,16 @@ public class PaymentService {
 
     private final PaymentApi paymentApi;
 
-    public Mono<Long> getBalance() {
-        return paymentApi.getBalance()
+    public Mono<Long> getBalance(long userId) {
+        return paymentApi.getBalance(userId)
                 .map(b -> b.getBalance())
                 .doOnError(e -> log.warn("Payment service unavailable: {}", e.getMessage()))
                 .onErrorReturn(-1L);
     }
 
-    public Mono<Boolean> pay(long amount) {
+    public Mono<Boolean> pay(long userId, long amount) {
         var req = new PaymentRequest().amount(amount);
-        return paymentApi.pay(req)
+        return paymentApi.pay(userId, req)
                 .map(resp -> Boolean.TRUE.equals(resp.getSuccess()))
                 .onErrorResume(WebClientResponseException.class, e -> {
                     if (e.getStatusCode().value() == 409) {

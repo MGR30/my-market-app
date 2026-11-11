@@ -5,11 +5,18 @@ info:
   description: RESTful-сервис платежей для витрины магазина
 
 paths:
-  /balance:
+  /balance/{userId}:
     get:
       operationId: getBalance
       tags: [payment]
-      summary: Получить текущий баланс
+      summary: Получить текущий баланс пользователя
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
       responses:
         '200':
           description: Баланс получен
@@ -17,12 +24,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BalanceResponse'
+        '401':
+          description: Не авторизовано
 
-  /pay:
+  /pay/{userId}:
     post:
       operationId: pay
       tags: [payment]
-      summary: Списать сумму со счёта
+      summary: Списать сумму со счёта пользователя
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
       requestBody:
         required: true
         content:
@@ -42,6 +58,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentResponse'
+        '401':
+          description: Не авторизовано
 
 components:
   schemas:

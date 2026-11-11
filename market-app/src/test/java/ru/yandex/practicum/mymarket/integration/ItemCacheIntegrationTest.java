@@ -11,6 +11,8 @@ import ru.yandex.practicum.mymarket.repository.ItemRepository;
 import ru.yandex.practicum.mymarket.service.ItemService;
 import ru.yandex.practicum.mymarket.support.AbstractIntegrationTest;
 
+import java.util.Objects;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ItemCacheIntegrationTest extends AbstractIntegrationTest {
@@ -33,14 +35,14 @@ class ItemCacheIntegrationTest extends AbstractIntegrationTest {
         redis.keys("item:*").flatMap(redis::delete).blockLast();
         redis.keys("items:list:*").flatMap(redis::delete).blockLast();
 
-        id = itemRepository.save(Item.builder()
+        id = Objects.requireNonNull(itemRepository.save(Item.builder()
                 .title("Кеш-товар").description("d").imgPath("i.jpg").price(999L)
-                .build()).block().getId();
+                .build()).block()).getId();
     }
 
     @Test
     void findById_cachesResult() {
-        StepVerifier.create(itemService.findById(id))
+        StepVerifier.create(itemService.findById(id, -1L))
                 .expectNextMatches(dto -> dto.title().equals("Кеш-товар"))
                 .verifyComplete();
 
@@ -52,6 +54,6 @@ class ItemCacheIntegrationTest extends AbstractIntegrationTest {
             return itemRepository.save(it);
         }).block();
 
-        assertThat(itemService.findById(id).block().title()).isEqualTo("Кеш-товар");
+        assertThat(Objects.requireNonNull(itemService.findById(id, -1L).block()).title()).isEqualTo("Кеш-товар");
     }
 }

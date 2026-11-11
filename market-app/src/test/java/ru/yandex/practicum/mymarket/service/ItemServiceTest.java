@@ -8,11 +8,14 @@ import ru.yandex.practicum.mymarket.dto.ActionType;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.dto.SortType;
 import ru.yandex.practicum.mymarket.model.Item;
+import ru.yandex.practicum.mymarket.model.User;
 import ru.yandex.practicum.mymarket.repository.CartItemRepository;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
+import ru.yandex.practicum.mymarket.repository.UserRepository;
 import ru.yandex.practicum.mymarket.support.AbstractIntegrationTest;
 
 import java.util.List;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,23 +23,28 @@ public class ItemServiceTest extends AbstractIntegrationTest {
 
     @Autowired
     private ItemService itemService;
-
     @Autowired
     private ItemRepository itemRepository;
-
     @Autowired
     private CartItemRepository cartItemRepository;
-
     @Autowired
     private CartService cartService;
-
+    @Autowired
+    private UserRepository userRepository;
     @Autowired
     private ReactiveRedisTemplate<String, Object> redis;
+
+    private Long userId;
 
     @BeforeEach
     void setUp() {
         cartItemRepository.deleteAll().block();
         itemRepository.deleteAll().block();
+        userRepository.deleteAll().block();
+
+        userId = Objects.requireNonNull(userRepository.save(User.builder()
+                .username("testuser").password("x").role("USER").build()).block()).getId();
+
         itemRepository.saveAll(List.of(
                 Item.builder().title("A").description("a").imgPath("a.jpg").price(100L).build(),
                 Item.builder().title("B").description("b").imgPath("b.jpg").price(300L).build(),
@@ -49,7 +57,7 @@ public class ItemServiceTest extends AbstractIntegrationTest {
 
     @Test
     void findItems_shouldSortByPriceAsc() {
-        var result = itemService.findItems(null, SortType.PRICE, 1, 10).block();
+        var result = itemService.findItems(null, SortType.PRICE, 1, 10, userId).block();
         assertThat(result).isNotNull();
 
         List<ItemDto> flat = result.items().stream()
@@ -62,12 +70,12 @@ public class ItemServiceTest extends AbstractIntegrationTest {
 
     @Test
     void findItems_shouldPaginate() {
-        var first = itemService.findItems(null, SortType.NO, 1, 2).block();
+        var first = itemService.findItems(null, SortType.NO, 1, 2, userId).block();
         assertThat(first).isNotNull();
         assertThat(first.paging().hasNext()).isTrue();
         assertThat(first.paging().hasPrevious()).isFalse();
 
-        var second = itemService.findItems(null, SortType.NO, 2, 2).block();
+        var second = itemService.findItems(null, SortType.NO, 2, 2, userId).block();
         assertThat(second).isNotNull();
         assertThat(second.paging().hasPrevious()).isTrue();
         assertThat(second.paging().hasNext()).isFalse();
@@ -75,7 +83,7 @@ public class ItemServiceTest extends AbstractIntegrationTest {
 
     @Test
     void findItems_shouldSearch() {
-        var result = itemService.findItems("A", SortType.NO, 1, 10).block();
+        var result = itemService.findItems("A", SortType.NO, 1, 10, userId).block();
         assertThat(result).isNotNull();
 
         List<ItemDto> flat = result.items().stream()
@@ -84,16 +92,16 @@ public class ItemServiceTest extends AbstractIntegrationTest {
                 .toList();
 
         assertThat(flat).hasSize(1);
-        assertThat(flat.get(0).title()).isEqualTo("A");
+        assertThat(flat.getFirst().title()).isEqualTo("A");
     }
 
     @Test
     void findItems_shouldReturnCartCount() {
-        Long id = itemRepository.findAll().collectList().block().get(0).getId();
-        cartService.changeQuantity(id, ActionType.PLUS).block();
-        cartService.changeQuantity(id, ActionType.PLUS).block();
+        Long id = Objects.requireNonNull(itemRepository.findAll().collectList().block()).getFirst().getId();
+        cartService.changeQuantity(userId, id, ActionType.PLUS).block();
+        cartService.changeQuantity(userId, id, ActionType.PLUS).block();
 
-        var result = itemService.findItems(null, SortType.NO, 1, 10).block();
+        var result = itemService.findItems(null, SortType.NO, 1, 10, userId).block();
         assertThat(result).isNotNull();
 
         ItemDto dto = result.items().stream()
@@ -107,9 +115,9 @@ public class ItemServiceTest extends AbstractIntegrationTest {
 
     @Test
     void findCartItems_shouldReturnOnlyExisting() {
-        Long id = itemRepository.findAll().collectList().block().get(0).getId();
-        cartService.changeQuantity(id, ActionType.PLUS).block();
+        Long id = Objects.requireNonNull(itemRepository.findAll().collectList().block()).getFirst().getId();
+        cartService.changeQuantity(userId, id, ActionType.PLUS).block();
 
-        assertThat(itemService.findCartItems().block()).hasSize(1);
+        assertThat(itemService.findCartItems(userId).block()).hasSize(1);
     }
 }
