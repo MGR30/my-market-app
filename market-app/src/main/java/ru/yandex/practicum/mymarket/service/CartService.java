@@ -16,12 +16,12 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
 
     @Transactional
-    public Mono<Void> changeQuantity(long itemId, ActionType action) {
-        return cartItemRepository.findByItemId(itemId)
+    public Mono<Void> changeQuantity(long userId, long itemId, ActionType action) {
+        return cartItemRepository.findByUserIdAndItemId(userId, itemId)
                 .flatMap(cartItem -> applyAction(cartItem, action).thenReturn(true))
                 .switchIfEmpty(Mono.defer(() -> {
                     if (action == ActionType.PLUS) {
-                        return create(itemId).thenReturn(true);
+                        return create(userId, itemId).thenReturn(true);
                     }
                     return Mono.just(false);
                 }))
@@ -46,21 +46,22 @@ public class CartService {
         };
     }
 
-    private Mono<CartItem> create(long itemId) {
+    private Mono<CartItem> create(long userId, long itemId) {
         return cartItemRepository.save(
                 CartItem.builder()
+                        .userId(userId)
                         .itemId(itemId)
                         .quantity(1)
                         .build()
         );
     }
 
-    public Flux<CartItem> findAll() {
-        return cartItemRepository.findAll();
+    public Flux<CartItem> findAllByUserId(long userId) {
+        return cartItemRepository.findAllByUserId(userId);
     }
 
     @Transactional
-    public Mono<Void> clear() {
-        return cartItemRepository.deleteAll();
+    public Mono<Void> clearByUserId(long userId) {
+        return cartItemRepository.deleteAllByUserId(userId);
     }
 }

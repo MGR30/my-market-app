@@ -8,9 +8,11 @@ import ru.yandex.practicum.mymarket.model.CartItem;
 import java.util.Collection;
 
 public interface CartItemRepository extends ReactiveCrudRepository<CartItem, Long> {
-    Mono<CartItem> findByItemId(Long itemId);
+    Mono<CartItem> findByUserIdAndItemId(Long userId, Long itemId);
 
-    Flux<CartItem> findAllByItemIdIn(Collection<Long> itemIds);
+    Flux<CartItem> findAllByUserId(Long userId);
 
-    Mono<Void> deleteByItemId(Long itemId);
+    Flux<CartItem> findAllByUserIdAndItemIdIn(Long userId, Collection<Long> itemIds);
+
+    Mono<Void> deleteAllByUserId(Long userId);
 }

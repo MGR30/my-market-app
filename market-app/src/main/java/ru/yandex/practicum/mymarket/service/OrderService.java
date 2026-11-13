@@ -8,11 +8,7 @@ import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.mymarket.dto.ItemDto;
 import ru.yandex.practicum.mymarket.dto.OrderDto;
-import ru.yandex.practicum.mymarket.model.CartItem;
-import ru.yandex.practicum.mymarket.model.Item;
-import ru.yandex.practicum.mymarket.model.Order;
-import ru.yandex.practicum.mymarket.model.OrderItem;
-import ru.yandex.practicum.mymarket.model.OrderStatus;
+import ru.yandex.practicum.mymarket.model.*;
 import ru.yandex.practicum.mymarket.repository.ItemRepository;
 import ru.yandex.practicum.mymarket.repository.OrderItemRepository;
 import ru.yandex.practicum.mymarket.repository.OrderRepository;
@@ -33,8 +29,8 @@ public class OrderService {
     private final DatabaseClient databaseClient;
     private final TransactionalOperator txOperator;
 
-    public Mono<Long> createOrder() {
-        return cartService.findAll().collectList()
+    public Mono<Long> createOrder(long userId) {
+        return cartService.findAllByUserId(userId).collectList()
                 .flatMap(cartItems -> {
                     if (cartItems.isEmpty()) {
                         return Mono.error(new IllegalStateException("Корзина пуста"));
@@ -42,14 +38,14 @@ public class OrderService {
                     List<Long> itemIds = cartItems.stream().map(CartItem::getItemId).toList();
                     return itemRepository.findAllById(itemIds)
                             .collectMap(Item::getId)
-                            .flatMap(items -> processOrder(cartItems, items));
+                            .flatMap(items -> processOrder(userId, cartItems, items));
                 });
     }
 
-    private Mono<Long> processOrder(List<CartItem> cartItems, Map<Long, Item> items) {
+    private Mono<Long> processOrder(long userId, List<CartItem> cartItems, Map<Long, Item> items) {
         long total = calculateTotal(cartItems, items);
 
-        return paymentService.getBalance()
+        return paymentService.getBalance(userId)
                 .flatMap(balance -> {
                     if (balance < 0) {
                         return Mono.error(new IllegalStateException("Сервис платежей недоступен"));
@@ -58,14 +54,14 @@ public class OrderService {
                         return Mono.error(new IllegalStateException("Недостаточно средств"));
                     }
 
-                    return savePendingOrder(cartItems, items)
-                            .flatMap(orderId -> paymentService.pay(total)
+                    return savePendingOrder(userId, cartItems, items)
+                            .flatMap(orderId -> paymentService.pay(userId, total)
                                     .flatMap(paid -> {
                                         if (!paid) {
                                             return markOrderFailed(orderId)
                                                     .then(Mono.error(new IllegalStateException("Недостаточно средств")));
                                         }
-                                        return markOrderPaidAndClearCart(orderId)
+                                        return markOrderPaidAndClearCart(userId, orderId)
                                                 .thenReturn(orderId);
                                     })
                                     .onErrorResume(PaymentService.PaymentUnavailableException.class, e ->
@@ -75,8 +71,9 @@ public class OrderService {
                 });
     }
 
-    private Mono<Long> savePendingOrder(List<CartItem> cartItems, Map<Long, Item> items) {
+    private Mono<Long> savePendingOrder(long userId, List<CartItem> cartItems, Map<Long, Item> items) {
         Order order = Order.builder()
+                .userId(userId)
                 .createdAt(LocalDateTime.now())
                 .status(OrderStatus.PENDING)
                 .build();
@@ -105,9 +102,9 @@ public class OrderService {
                 .as(txOperator::transactional);
     }
 
-    private Mono<Void> markOrderPaidAndClearCart(Long orderId) {
+    private Mono<Void> markOrderPaidAndClearCart(long userId, Long orderId) {
         return updateOrderStatus(orderId, OrderStatus.PAID)
-                .then(cartService.clear())
+                .then(cartService.clearByUserId(userId))
                 .as(txOperator::transactional);
     }
 
@@ -131,8 +128,8 @@ public class OrderService {
                 .sum();
     }
 
-    public Mono<List<OrderDto>> findAll() {
-        return orderRepository.findAllByStatusOrderByIdDesc(OrderStatus.PAID).collectList()
+    public Mono<List<OrderDto>> findAllByUserId(long userId) {
+        return orderRepository.findAllByUserIdAndStatusOrderByIdDesc(userId, OrderStatus.PAID).collectList()
                 .flatMap(orders -> {
                     if (orders.isEmpty()) {
                         return Mono.just(List.of());
@@ -147,8 +144,8 @@ public class OrderService {
                 });
     }
 
-    public Mono<OrderDto> findById(long id) {
-        return orderRepository.findByIdAndStatus(id, OrderStatus.PAID)
+    public Mono<OrderDto> findByIdAndUserId(long id, long userId) {
+        return orderRepository.findByIdAndUserIdAndStatus(id, userId, OrderStatus.PAID)
                 .switchIfEmpty(Mono.error(() -> new NoSuchElementException("Заказ не найден: " + id)))
                 .flatMap(order -> orderItemRepository.findAllByOrderId(id)
                         .collectList()

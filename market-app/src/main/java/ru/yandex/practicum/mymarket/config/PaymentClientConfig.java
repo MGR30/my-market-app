@@ -3,6 +3,7 @@ package ru.yandex.practicum.mymarket.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.reactive.function.client.WebClient;
 import ru.yandex.practicum.payment.client.api.PaymentApi;
 import ru.yandex.practicum.payment.client.invoker.ApiClient;
 
@@ -10,8 +11,13 @@ import ru.yandex.practicum.payment.client.invoker.ApiClient;
 public class PaymentClientConfig {
 
     @Bean
-    public ApiClient paymentApiClient(@Value("${payment.service.url}") String baseUrl) {
-        ApiClient client = new ApiClient();
+    public ApiClient paymentApiClient(@Value("${payment.service.url}") String baseUrl,
+                                      WebClient.Builder oauth2WebClientBuilder) {
+        WebClient webClient = oauth2WebClientBuilder.clone()
+                .baseUrl(baseUrl)
+                .build();
+
+        ApiClient client = new ApiClient(webClient);
         client.setBasePath(baseUrl);
         return client;
     }

@@ -36,7 +36,8 @@ public class ItemService {
     @Value("${cache.items.ttl-seconds:120}")
     private long ttlSeconds;
 
-    public Mono<ItemPageResult> findItems(String search, SortType sort, int pageNumber, int pageSize) {
+    public Mono<ItemPageResult> findItems(String search, SortType sort,
+                                          int pageNumber, int pageSize, Long userId) {
         String cacheKey = LIST_KEY_PREFIX + safe(search) + ":" + sort + ":" + pageNumber + ":" + pageSize;
 
         return redis.opsForValue().get(cacheKey)
@@ -45,7 +46,7 @@ public class ItemService {
                         .flatMap(result -> redis.opsForValue()
                                 .set(cacheKey, result, Duration.ofSeconds(ttlSeconds))
                                 .thenReturn(result))))
-                .flatMap(this::enrichPageWithCounts);
+                .flatMap(result -> enrichPageWithCounts(result, userId));
     }
 
     private Mono<ItemPageResult> loadItemsFromDb(String search, SortType sort, int pageNumber, int pageSize) {
@@ -103,7 +104,10 @@ public class ItemService {
         });
     }
 
-    private Mono<ItemPageResult> enrichPageWithCounts(ItemPageResult cached) {
+    private Mono<ItemPageResult> enrichPageWithCounts(ItemPageResult cached, Long userId) {
+        if (userId == null) {
+            return Mono.just(cached);
+        }
         List<Long> ids = cached.items().stream()
                 .flatMap(List::stream)
                 .filter(dto -> dto.id() != -1)
@@ -114,7 +118,7 @@ public class ItemService {
             return Mono.just(cached);
         }
 
-        return cartItemRepository.findAllByItemIdIn(ids)
+        return cartItemRepository.findAllByUserIdAndItemIdIn(userId, ids)
                 .collectMap(CartItem::getItemId, CartItem::getQuantity)
                 .map(counts -> {
                     List<List<ItemDto>> enrichedRows = cached.items().stream()
@@ -130,18 +134,22 @@ public class ItemService {
                 });
     }
 
-    public Mono<ItemDto> findById(long id) {
+    public Mono<ItemDto> findById(long id, Long userId) {
         return findItemFromCache(id)
-                .flatMap(dto -> cartItemRepository.findByItemId(id)
-                        .map(CartItem::getQuantity)
-                        .defaultIfEmpty(0)
-                        .map(count -> new ItemDto(
-                                dto.id(), dto.title(), dto.description(),
-                                dto.imgPath(), dto.price(), count)));
+                .flatMap(dto -> {
+                    if (userId == null) {
+                        return Mono.just(dto);
+                    }
+                    return cartItemRepository.findByUserIdAndItemId(userId, id)
+                            .map(CartItem::getQuantity)
+                            .defaultIfEmpty(0)
+                            .map(count -> new ItemDto(dto.id(), dto.title(), dto.description(),
+                                    dto.imgPath(), dto.price(), count));
+                });
     }
 
-    public Mono<List<ItemDto>> findCartItems() {
-        return cartItemRepository.findAll()
+    public Mono<List<ItemDto>> findCartItems(long userId) {
+        return cartItemRepository.findAllByUserId(userId)
                 .concatMap(ci -> findItemFromCache(ci.getItemId())
                         .map(dto -> new ItemDto(dto.id(), dto.title(), dto.description(),
                                 dto.imgPath(), dto.price(), ci.getQuantity()))
