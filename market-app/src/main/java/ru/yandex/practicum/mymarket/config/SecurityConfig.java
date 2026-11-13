@@ -20,7 +20,6 @@ import java.net.URI;
 @Configuration
 @EnableWebFluxSecurity
 public class SecurityConfig {
-
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -49,15 +48,15 @@ public class SecurityConfig {
                         .pathMatchers("/login", "/logout", "/register",
                                 "/images/**", "/favicon.ico",
                                 "/css/**", "/js/**").permitAll()
-                        .pathMatchers(HttpMethod.GET,
-                                "/", "/items", "/items/**").permitAll()
-                        .anyExchange().authenticated()
+                        .pathMatchers(HttpMethod.GET, "/", "/items", "/items/**")
+                        .permitAll()
+                        .anyExchange()
+                        .authenticated()
                 )
                 .formLogin(form -> form
                         .loginPage("/login")
                         .authenticationSuccessHandler(
-                                new RedirectServerAuthenticationSuccessHandler("/items")
-                        )
+                                new RedirectServerAuthenticationSuccessHandler("/items"))
                 )
                 .logout(logout -> logout
                         .logoutUrl("/logout")

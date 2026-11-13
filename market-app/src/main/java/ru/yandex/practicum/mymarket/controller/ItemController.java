@@ -2,6 +2,7 @@ package ru.yandex.practicum.mymarket.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,70 +36,38 @@ public class ItemController {
             @RequestParam(defaultValue = "5") int pageSize,
             Principal principal) {
 
-        boolean isAuth = isAuthenticated(principal);
-
-        return userService.findOptionalByUsername(principal != null ? principal.getName() : null)
+        String username = principal != null ? principal.getName() : null;
+        return userService.findOptionalByUsername(username)
                 .map(User::getId)
-                .defaultIfEmpty(-1L)
-                .flatMap(userId -> itemService.findItems(search, sort, pageNumber, pageSize, userId)
-                        .map(result -> Rendering.view("items")
-                                .modelAttribute("items", result.items())
-                                .modelAttribute("search", search)
-                                .modelAttribute("sort", sort.name())
-                                .modelAttribute("paging", result.paging())
-                                .modelAttribute("isAuthenticated", isAuth)
-                                .build()));
+                .flatMap(userId -> loadItems(search, sort, pageNumber, pageSize, userId))
+                .switchIfEmpty(Mono.defer(() ->
+                        loadItems(search, sort, pageNumber, pageSize, null)));
     }
 
     @GetMapping("/items/{id}")
     public Mono<Rendering> item(@PathVariable long id, Principal principal) {
-        boolean isAuth = isAuthenticated(principal);
-        return userService.findOptionalByUsername(principal != null ? principal.getName() : null)
+        String username = principal != null ? principal.getName() : null;
+        return userService.findOptionalByUsername(username)
                 .map(User::getId)
-                .defaultIfEmpty(-1L)
-                .flatMap(userId -> itemService.findById(id, userId)
-                        .map(item -> Rendering.view("item")
-                                .modelAttribute("item", item)
-                                .modelAttribute("isAuthenticated", isAuth)
-                                .build()));
+                .flatMap(userId -> loadItem(id, userId))
+                .switchIfEmpty(Mono.defer(() -> loadItem(id, null)));
     }
 
     @PostMapping("/items")
     public Mono<String> changeCountFromList(ServerWebExchange exchange, Principal principal) {
-        if (!isAuthenticated(principal)) {
-            return Mono.just("redirect:/login");
-        }
         return userService.findByUsername(principal.getName())
                 .flatMap(user -> exchange.getFormData()
                         .flatMap(form -> {
                             String idParam = form.getFirst("id");
                             String actionParam = form.getFirst("action");
-                            String search = form.getFirst("search");
-                            String sortParam = form.getFirst("sort");
-                            String pageSizeParam = form.getFirst("pageSize");
-                            String pageNumberParam = form.getFirst("pageNumber");
-
                             if (idParam == null || actionParam == null) {
-                                return Mono.just(buildRedirect(search, sortParam, pageNumberParam, pageSizeParam));
+                                return Mono.just(buildRedirect(form));
                             }
-
                             long id = Long.parseLong(idParam);
                             ActionType action = ActionType.valueOf(actionParam);
-
                             return cartService.changeQuantity(user.getId(), id, action)
-                                    .thenReturn(buildRedirect(search, sortParam, pageNumberParam, pageSizeParam));
+                                    .thenReturn(buildRedirect(form));
                         }));
-    }
-
-    private String buildRedirect(String search, String sort, String pageNumber, String pageSize) {
-        UriComponentsBuilder b = UriComponentsBuilder.fromPath("/items");
-        if (search != null && !search.isBlank()) {
-            b.queryParam("search", search);
-        }
-        b.queryParam("sort", sort != null ? sort : "NO");
-        b.queryParam("pageNumber", pageNumber != null ? pageNumber : "1");
-        b.queryParam("pageSize", pageSize != null ? pageSize : "5");
-        return "redirect:" + b.build().encode().toUriString();
     }
 
     @PostMapping("/items/{id}")
@@ -106,20 +75,43 @@ public class ItemController {
             @PathVariable long id,
             @RequestParam ActionType action,
             Principal principal) {
-
-        if (!isAuthenticated(principal)) {
-            return Mono.just(Rendering.redirectTo("/login").build());
-        }
         return userService.findByUsername(principal.getName())
                 .flatMap(user -> cartService.changeQuantity(user.getId(), id, action)
-                        .then(itemService.findById(id, user.getId()))
-                        .map(item -> Rendering.view("item")
-                                .modelAttribute("item", item)
-                                .modelAttribute("isAuthenticated", true)
-                                .build()));
+                        .then(loadItem(id, user.getId())));
     }
 
-    private static boolean isAuthenticated(Principal principal) {
-        return principal != null && !"anonymousUser".equals(principal.getName());
+    private Mono<Rendering> loadItems(String search, SortType sort, int pageNumber,
+                                      int pageSize, Long userId) {
+        return itemService.findItems(search, sort, pageNumber, pageSize, userId)
+                .map(result -> Rendering.view("items")
+                        .modelAttribute("items", result.items())
+                        .modelAttribute("search", search)
+                        .modelAttribute("sort", sort.name())
+                        .modelAttribute("paging", result.paging())
+                        .modelAttribute("isAuthenticated", userId != null)
+                        .build());
+    }
+
+    private Mono<Rendering> loadItem(long id, Long userId) {
+        return itemService.findById(id, userId)
+                .map(item -> Rendering.view("item")
+                        .modelAttribute("item", item)
+                        .modelAttribute("isAuthenticated", userId != null)
+                        .build());
+    }
+
+    private String buildRedirect(MultiValueMap<String, String> form) {
+        UriComponentsBuilder b = UriComponentsBuilder.fromPath("/items");
+        String search = form.getFirst("search");
+        if (search != null && !search.isBlank()) {
+            b.queryParam("search", search);
+        }
+        String sort = form.getFirst("sort");
+        b.queryParam("sort", sort != null ? sort : "NO");
+        String pageNumber = form.getFirst("pageNumber");
+        b.queryParam("pageNumber", pageNumber != null ? pageNumber : "1");
+        String pageSize = form.getFirst("pageSize");
+        b.queryParam("pageSize", pageSize != null ? pageSize : "5");
+        return "redirect:" + b.build().encode().toUriString();
     }
 }

@@ -46,7 +46,7 @@ public class ItemControllerTest extends AbstractIntegrationTest {
         );
 
         Mockito.when(userService.findOptionalByUsername(Mockito.any())).thenReturn(Mono.empty());
-        Mockito.when(itemService.findItems(any(), any(), anyInt(), anyInt(), anyLong()))
+        Mockito.when(itemService.findItems(any(), any(), anyInt(), anyInt(), any()))
                 .thenReturn(Mono.just(result));
 
         webTestClient.get()

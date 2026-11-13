@@ -54,6 +54,6 @@ class ItemCacheIntegrationTest extends AbstractIntegrationTest {
             return itemRepository.save(it);
         }).block();
 
-        assertThat(Objects.requireNonNull(itemService.findById(id, -1L).block()).title()).isEqualTo("Кеш-товар");
+        assertThat(Objects.requireNonNull(itemService.findById(id, null).block()).title()).isEqualTo("Кеш-товар");
     }
 }
